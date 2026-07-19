@@ -498,6 +498,23 @@ export type GatewayToolsConfig = {
   allow?: string[];
 };
 
+export type GatewayIrohConfig = {
+  /** Enables the native Iroh/QUIC transport for the Gateway. WebSocket remains enabled. */
+  enabled?: boolean;
+  /**
+   * Persistent Iroh secret-key file. Defaults under the OpenClaw state dir.
+   * The runtime rejects symlinks and fixes newly-created files to owner-only permissions.
+   */
+  secretKeyPath?: string;
+  /**
+   * Iroh relay behavior. "default" uses the Iroh default relay map, "disabled"
+   * requires direct reachability, and "custom" uses relayUrls.
+   */
+  relayMode?: "default" | "disabled" | "staging" | "custom";
+  /** Custom relay URLs used only when relayMode is "custom". */
+  relayUrls?: string[];
+};
+
 export type GatewayConfig = {
   /** Single multiplexed port for Gateway WS + HTTP (default: 18789). */
   port?: number;
@@ -542,6 +559,8 @@ export type GatewayConfig = {
   allowRealIpFallback?: boolean;
   /** Tool access restrictions for HTTP /tools/invoke endpoint. */
   tools?: GatewayToolsConfig;
+  /** Native Iroh/QUIC Gateway transport. Additive to WebSocket. */
+  iroh?: GatewayIrohConfig;
   /**
    * Pre-auth Gateway WebSocket handshake timeout in milliseconds.
    * Env var OPENCLAW_HANDSHAKE_TIMEOUT_MS takes precedence. Default: 15000.

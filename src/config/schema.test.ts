@@ -144,6 +144,49 @@ describe("config schema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts gateway Iroh transport config", () => {
+    const result = OpenClawSchema.safeParse({
+      gateway: {
+        iroh: {
+          enabled: true,
+          secretKeyPath: "~/openclaw/iroh.key",
+          relayMode: "custom",
+          relayUrls: ["https://relay.example.test"],
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects custom gateway Iroh relay mode without relay URLs", () => {
+    const result = OpenClawSchema.safeParse({
+      gateway: {
+        iroh: {
+          enabled: true,
+          relayMode: "custom",
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toContain("gateway.iroh.relayUrls is required");
+  });
+
+  it("rejects gateway Iroh custom relay URL lists above the setup-code protocol limit", () => {
+    const result = OpenClawSchema.safeParse({
+      gateway: {
+        iroh: {
+          enabled: true,
+          relayMode: "custom",
+          relayUrls: Array.from({ length: 9 }, (_, index) => `https://relay-${index}.example.test`),
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it("accepts queued status reaction emoji overrides", () => {
     const result = OpenClawSchema.safeParse({
       messages: {

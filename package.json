@@ -2074,6 +2074,7 @@
     "vitest": "4.1.9"
   },
   "optionalDependencies": {
+    "@number0/iroh": "1.1.0",
     "sqlite-vec": "0.1.9"
   },
   "engines": {

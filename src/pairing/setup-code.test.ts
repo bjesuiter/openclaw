@@ -246,6 +246,33 @@ describe("pairing setup code", () => {
     expect(encodePairingSetupCode(payload)).toBe(expected);
   });
 
+  it("embeds optional Iroh metadata in pairing setup payloads", async () => {
+    const iroh = {
+      alpn: "openclaw-gateway-v1",
+      endpointId: "iroh-endpoint",
+      ticket: "iroh-ticket",
+      relayMode: "default" as const,
+    };
+
+    const resolved = await resolvePairingSetupFromConfig(
+      createCustomGatewayConfig({ mode: "token", token: "tok_123" }),
+      {
+        iroh,
+        publicUrl: "wss://gateway.example.test",
+        forceSecure: true,
+      },
+    );
+
+    expectResolvedSetupOk(resolved, {
+      authLabel: "token",
+      url: "wss://gateway.example.test",
+    });
+    if (!resolved.ok) {
+      throw new Error("expected setup resolution to succeed");
+    }
+    expect(resolved.payload.iroh).toEqual(iroh);
+  });
+
   it("normalizes bare publicUrl host ports for setup code payloads", async () => {
     await expectResolvedSetupSuccessCase({
       config: createCustomGatewayConfig({ mode: "token", token: "tok_123" }),

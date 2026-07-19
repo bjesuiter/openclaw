@@ -11,6 +11,7 @@ import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { renderQrPngDataUrl } from "../../media/qr-image.js";
 import { encodePairingSetupCode, resolvePairingSetupFromConfig } from "../../pairing/setup-code.js";
 import { runCommandWithTimeout } from "../../process/exec.js";
+import { getGatewayIrohDiscoverySnapshot } from "../iroh-discovery.js";
 import { formatForLog } from "../ws-log.js";
 import type { GatewayRequestHandlers } from "./types.js";
 import { assertValidParams } from "./validation.js";
@@ -49,6 +50,21 @@ export const devicePairSetupHandlers: GatewayRequestHandlers = {
         env: process.env,
         publicUrl,
         preferRemoteUrl: params.preferRemoteUrl === true,
+        iroh: (() => {
+          const snapshot = getGatewayIrohDiscoverySnapshot();
+          if (!snapshot) {
+            return undefined;
+          }
+          return {
+            alpn: snapshot.alpn,
+            endpointId: snapshot.endpointId,
+            ticket: snapshot.ticket,
+            relayMode: snapshot.relayMode,
+            ...(snapshot.relayMode === "custom" && snapshot.relayUrls
+              ? { relayUrls: snapshot.relayUrls }
+              : {}),
+          };
+        })(),
         // Lets Tailscale serve/funnel URLs resolve, mirroring the `openclaw qr` CLI.
         runCommandWithTimeout: async (argv, runOpts) =>
           await runCommandWithTimeout(argv, { timeoutMs: runOpts.timeoutMs }),
@@ -76,6 +92,7 @@ export const devicePairSetupHandlers: GatewayRequestHandlers = {
           // Label only — never the raw gateway token/password.
           auth: resolved.authLabel,
           urlSource: requestPublicUrl ? "request.publicUrl" : resolved.urlSource,
+          ...(resolved.payload.iroh ? { iroh: resolved.payload.iroh } : {}),
         },
         undefined,
       );

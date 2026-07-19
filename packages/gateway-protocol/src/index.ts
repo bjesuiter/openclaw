@@ -8,6 +8,13 @@ export {
   type ClawHubTrustErrorCode,
   type ClawHubTrustErrorDetails,
 } from "./clawhub-trust-error-details.js";
+export {
+  encodeGatewayTransportFrame,
+  GatewayTransportFrameDecoder,
+  GatewayTransportFrameError,
+  type GatewayTransportDecodedFrame,
+  type GatewayTransportFrameErrorCode,
+} from "./transport-frame.js";
 import { Compile, type Validator as TypeBoxValidator } from "typebox/compile";
 import {
   type AgentEvent,

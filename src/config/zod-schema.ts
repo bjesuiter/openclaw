@@ -1175,6 +1175,28 @@ export const OpenClawSchema = z
           })
           .strict()
           .optional(),
+        iroh: z
+          .object({
+            enabled: z.boolean().optional(),
+            secretKeyPath: z
+              .string()
+              .optional()
+              .refine(
+                (v) => v === undefined || v.trim().length > 0,
+                "secretKeyPath must not be blank",
+              ),
+            relayMode: z
+              .union([
+                z.literal("default"),
+                z.literal("disabled"),
+                z.literal("staging"),
+                z.literal("custom"),
+              ])
+              .optional(),
+            relayUrls: z.array(z.string().url()).min(1).max(8).optional(),
+          })
+          .strict()
+          .optional(),
         handshakeTimeoutMs: z.number().int().min(1).optional(),
         channelHealthCheckMinutes: z.number().int().min(0).optional(),
         channelStaleEventThresholdMinutes: z.number().int().min(1).optional(),
@@ -1336,6 +1358,16 @@ export const OpenClawSchema = z
             path: ["channelStaleEventThresholdMinutes"],
             message:
               "channelStaleEventThresholdMinutes should be >= channelHealthCheckMinutes to avoid delayed stale detection",
+          });
+        }
+        if (
+          gateway.iroh?.relayMode === "custom" &&
+          (!gateway.iroh.relayUrls || gateway.iroh.relayUrls.length === 0)
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["iroh", "relayUrls"],
+            message: "gateway.iroh.relayUrls is required when gateway.iroh.relayMode is custom",
           });
         }
       })

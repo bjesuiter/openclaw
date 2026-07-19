@@ -370,6 +370,7 @@ function buildGatewayProtocolDistEntries(): Record<string, string> {
     "frame-guards": "packages/gateway-protocol/src/frame-guards.ts",
     schema: "packages/gateway-protocol/src/schema.ts",
     "startup-unavailable": "packages/gateway-protocol/src/startup-unavailable.ts",
+    "transport-frame": "packages/gateway-protocol/src/transport-frame.ts",
     version: "packages/gateway-protocol/src/version.ts",
   };
 }

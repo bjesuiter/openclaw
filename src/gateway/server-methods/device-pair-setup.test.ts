@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   encodePairingSetupCode: vi.fn(),
   renderQrPngDataUrl: vi.fn(),
   runCommandWithTimeout: vi.fn(),
+  getGatewayIrohDiscoverySnapshot: vi.fn(),
 }));
 
 vi.mock("../../pairing/setup-code.js", () => ({
@@ -21,6 +22,9 @@ vi.mock("../../media/qr-image.js", () => ({
 }));
 vi.mock("../../process/exec.js", () => ({
   runCommandWithTimeout: mocks.runCommandWithTimeout,
+}));
+vi.mock("../iroh-discovery.js", () => ({
+  getGatewayIrohDiscoverySnapshot: mocks.getGatewayIrohDiscoverySnapshot,
 }));
 
 import { devicePairSetupHandlers } from "./device-pair-setup.js";
@@ -63,6 +67,8 @@ describe("device.pair.setupCode", () => {
     mocks.encodePairingSetupCode.mockReset();
     mocks.renderQrPngDataUrl.mockReset();
     mocks.runCommandWithTimeout.mockReset();
+    mocks.getGatewayIrohDiscoverySnapshot.mockReset();
+    mocks.getGatewayIrohDiscoverySnapshot.mockReturnValue(null);
   });
 
   it("returns the setup code, QR data URL, and only an auth label", async () => {
@@ -217,5 +223,36 @@ describe("device.pair.setupCode", () => {
     expect(payload.setupCode).toBe("SETUP-CODE-XYZ");
     expect(payload.qrDataUrl).toBeUndefined();
     expect(error).toBeUndefined();
+  });
+
+  it("includes optional Iroh discovery metadata in the setup code and result", async () => {
+    const iroh = {
+      alpn: "openclaw-gateway-v1",
+      endpointId: "iroh-endpoint",
+      ticket: "iroh-ticket",
+      relayMode: "custom" as const,
+      relayUrls: ["https://relay.example.test"],
+    };
+    mocks.getGatewayIrohDiscoverySnapshot.mockReturnValue({ enabled: true, ...iroh });
+    mocks.resolvePairingSetupFromConfig.mockResolvedValue({
+      ...okResolution,
+      payload: {
+        ...okResolution.payload,
+        iroh,
+      },
+    });
+    mocks.encodePairingSetupCode.mockReturnValue("SETUP-CODE-XYZ");
+
+    const { options, respond } = createOptions({ includeQr: false });
+    await devicePairSetupHandlers["device.pair.setupCode"](options);
+
+    expect(mocks.resolvePairingSetupFromConfig).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ iroh }),
+    );
+    const [ok, payload] = respond.mock.calls[0];
+    expect(ok).toBe(true);
+    expect(payload.iroh).toEqual(iroh);
+    expect(JSON.stringify(payload)).not.toContain("boot-123");
   });
 });

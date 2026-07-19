@@ -35,6 +35,13 @@ export type PairingSetupPayload = {
   url: string;
   urls?: string[];
   bootstrapToken: string;
+  iroh?: {
+    alpn: string;
+    endpointId: string;
+    ticket: string;
+    relayMode: "default" | "disabled" | "staging" | "custom";
+    relayUrls?: string[];
+  };
 };
 
 const PAIRING_SETUP_MAX_URLS = 8;
@@ -56,6 +63,7 @@ export type ResolvePairingSetupOptions = {
   preferRemoteUrl?: boolean;
   forceSecure?: boolean;
   pairingBaseDir?: string;
+  iroh?: PairingSetupPayload["iroh"];
   runCommandWithTimeout?: PairingSetupCommandRunner;
   networkInterfaces?: () => ReturnType<typeof os.networkInterfaces>;
 };
@@ -438,6 +446,7 @@ export async function resolvePairingSetupFromConfig(
           profile: PAIRING_SETUP_BOOTSTRAP_PROFILE,
         })
       ).token,
+      ...(options.iroh ? { iroh: options.iroh } : {}),
     },
     authLabel: authLabel.label,
     urlSource: urlResult.source ?? "unknown",

@@ -1588,6 +1588,39 @@ export async function startGatewayServer(
         context: gatewayRequestContext,
       }),
     );
+    const irohRuntimeHandle =
+      cfgAtStart.gateway?.iroh?.enabled === true
+        ? await startupTrace.measure("gateway.iroh-start", async () => {
+            const { startGatewayIrohRuntime } = await import("./iroh-runtime.js");
+            return await startGatewayIrohRuntime({
+              config: cfgAtStart.gateway?.iroh,
+              clients,
+              preauthConnectionBudget,
+              resolvedAuth,
+              getResolvedAuth,
+              getRequiredSharedGatewaySessionGeneration: () =>
+                getRequiredSharedGatewaySessionGeneration(sharedGatewaySessionGenerationState),
+              rateLimiter: authRateLimiter,
+              browserRateLimiter: browserAuthRateLimiter,
+              nodeReapprovalCoordinator,
+              preauthHandshakeTimeoutMs,
+              isStartupPending: isGatewayStartupPending,
+              gatewayMethods: runtimeState.gatewayMethods,
+              events: GATEWAY_EVENTS,
+              logGateway: log,
+              logHealth,
+              logWsControl,
+              extraHandlers: attachedGatewayExtraHandlers,
+              getMethodRegistry: () => attachedGatewayMethodRegistry,
+              broadcast,
+              context: gatewayRequestContext,
+              pluginNodeCapabilities: listPluginNodeCapabilities(pluginRegistry),
+            });
+          })
+        : null;
+    if (irohRuntimeHandle) {
+      runtimeState.gatewayLifetimeSidecars.push({ stop: irohRuntimeHandle.stop });
+    }
     await startupTrace.measure("http.listen", () => startListening());
     startupTrace.mark("http.bound");
     const sessionDeliveryRecoveryMaxEnqueuedAt = Date.now();
@@ -1703,9 +1736,12 @@ export async function startGatewayServer(
               }
             },
             onGatewayLifetimeSidecars: (gatewayLifetimeSidecars) => {
-              runtimeState.gatewayLifetimeSidecars = gatewayLifetimeSidecars;
+              runtimeState.gatewayLifetimeSidecars = [
+                ...runtimeState.gatewayLifetimeSidecars,
+                ...gatewayLifetimeSidecars,
+              ];
               stopPostReadySidecarsAfterCloseStarted({
-                postReadySidecars: gatewayLifetimeSidecars,
+                postReadySidecars: runtimeState.gatewayLifetimeSidecars,
                 closeStarted: closePreludeStarted,
               });
               if (closePreludeStarted) {

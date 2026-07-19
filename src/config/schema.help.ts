@@ -123,6 +123,16 @@ export const FIELD_HELP: Record<string, string> = {
     "Explicit gateway-level tool allowlist when you want a narrow set of tools available at runtime. Use this for locked-down environments where tool scope must be tightly controlled.",
   "gateway.tools.deny":
     "Explicit gateway-level tool denylist to block risky tools even if lower-level policies allow them. Use deny rules for emergency response and defense-in-depth hardening.",
+  "gateway.iroh":
+    "Native Iroh/QUIC Gateway transport settings. This transport is additive to WebSocket and still requires normal Gateway authentication.",
+  "gateway.iroh.enabled":
+    "Enables the native Iroh Gateway transport when true. Keep WebSocket as the default/fallback path and enable Iroh only for paired clients that support it.",
+  "gateway.iroh.secretKeyPath":
+    "Persistent Iroh secret-key file path. Leave unset for the OpenClaw state-dir default; the runtime rejects symlinks and stores newly-created keys with owner-only permissions.",
+  "gateway.iroh.relayMode":
+    'Iroh relay mode: "default" uses the bundled Iroh relay map, "disabled" requires direct reachability, "staging" uses Iroh staging relays, and "custom" uses gateway.iroh.relayUrls.',
+  "gateway.iroh.relayUrls":
+    "Custom Iroh relay URLs used only with gateway.iroh.relayMode='custom'. Keep the list limited to relays you trust for reachability metadata.",
   "gateway.handshakeTimeoutMs":
     "Pre-auth Gateway WebSocket handshake timeout in milliseconds. Use higher values on loaded or low-powered hosts where local clients can connect during startup warmup. OPENCLAW_HANDSHAKE_TIMEOUT_MS still takes precedence.",
   "gateway.channelHealthCheckMinutes":

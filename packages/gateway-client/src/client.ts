@@ -30,6 +30,11 @@ import { MIN_CLIENT_PROTOCOL_VERSION, PROTOCOL_VERSION } from "@openclaw/gateway
 import ipaddr from "ipaddr.js";
 import { WebSocket, type ClientOptions, type CertMeta } from "ws";
 import { buildDeviceAuthPayloadV3 } from "./device-auth.js";
+import {
+  GatewayIrohClientTransport,
+  type GatewayClientIrohOptions,
+  type GatewayClientTransportSocket,
+} from "./iroh-transport.js";
 import { resolveConnectChallengeTimeoutMs, resolveSafeTimeoutDelayMs } from "./timeouts.js";
 
 export type DeviceIdentity = {
@@ -389,6 +394,8 @@ export type GatewayClientOptions = {
   env?: NodeJS.ProcessEnv;
   deviceIdentity?: DeviceIdentity | null;
   hostDeps?: GatewayClientHostDeps;
+  /** Native Iroh transport. When unset, the client uses WebSocket. */
+  iroh?: GatewayClientIrohOptions;
   minProtocol?: number;
   maxProtocol?: number;
   tlsFingerprint?: string;
@@ -464,16 +471,17 @@ export function resolveGatewayClientConnectChallengeTimeoutMs(
 const FORCE_STOP_TERMINATE_GRACE_MS = 250;
 const STOP_AND_WAIT_TIMEOUT_MS = 1_000;
 const MAX_SUPPRESSED_TRANSIENT_PRE_HELLO_CLEAN_CLOSES = 1;
+const GATEWAY_CLIENT_TRANSPORT_OPEN = WebSocket.OPEN;
 
 type PendingStop = {
-  ws: WebSocket;
+  ws: GatewayClientTransportSocket;
   promise: Promise<void>;
   resolve: () => void;
   terminateTimer?: NodeJS.Timeout;
 };
 
 export class GatewayClient {
-  private ws: WebSocket | null = null;
+  private ws: GatewayClientTransportSocket | null = null;
   private opts: GatewayClientOptions;
   private deps: Required<GatewayClientHostDeps>;
   private pending = new Map<string, Pending>();
@@ -558,8 +566,9 @@ export class GatewayClient {
     this.clearConnectChallengeTimeout();
     this.connectNonce = null;
     this.connectSent = false;
+    const irohOptions = this.opts.iroh;
     const url = this.opts.url ?? DEFAULT_GATEWAY_CLIENT_URL;
-    if (this.opts.tlsFingerprint && !url.startsWith("wss://")) {
+    if (!irohOptions && this.opts.tlsFingerprint && !url.startsWith("wss://")) {
       this.notifyConnectError(new Error("gateway tls fingerprint requires wss:// gateway url"));
       return;
     }
@@ -568,7 +577,7 @@ export class GatewayClient {
       (this.opts.env ?? process.env).OPENCLAW_ALLOW_INSECURE_PRIVATE_WS === "1";
     // Block plaintext before device-token lookup. Credentials may be loaded from
     // host storage later in sendConnect(), and chat payloads are sensitive too.
-    if (!isSecureWebSocketUrl(url, { allowPrivateWs })) {
+    if (!irohOptions && !isSecureWebSocketUrl(url, { allowPrivateWs })) {
       // Safe hostname extraction - avoid throwing on malformed URLs in error path
       let displayHost = url;
       try {
@@ -618,12 +627,14 @@ export class GatewayClient {
         return undefined;
       };
     }
-    let ws: WebSocket;
-    // Managed proxies can intercept local traffic; the host owns the bypass
-    // lifecycle and must remove it immediately after the socket is created.
-    const unregisterGatewayLoopbackBypass = this.deps.registerGatewayLoopbackBypass(url);
+    let ws: GatewayClientTransportSocket;
+    const unregisterGatewayLoopbackBypass = irohOptions
+      ? undefined
+      : this.deps.registerGatewayLoopbackBypass(url);
     try {
-      ws = new WebSocket(url, wsOptions as ClientOptions);
+      ws = irohOptions
+        ? new GatewayIrohClientTransport(irohOptions)
+        : new WebSocket(url, wsOptions as ClientOptions);
     } catch (error) {
       this.notifyConnectError(error instanceof Error ? error : new Error(String(error)));
       return;
@@ -640,7 +651,7 @@ export class GatewayClient {
 
     ws.on("open", () => {
       this.socketOpened = true;
-      if (url.startsWith("wss://") && this.opts.tlsFingerprint) {
+      if (!irohOptions && url.startsWith("wss://") && this.opts.tlsFingerprint) {
         const tlsError = this.validateTlsFingerprint();
         if (tlsError) {
           this.notifyConnectError(tlsError);
@@ -788,7 +799,7 @@ export class GatewayClient {
       const pendingStop = this.createPendingStop(ws);
       const forceTerminateTimer = setTimeout(() => {
         try {
-          ws.terminate();
+          ws.terminate?.();
         } catch {}
         this.resolvePendingStop(ws);
       }, FORCE_STOP_TERMINATE_GRACE_MS);
@@ -802,7 +813,7 @@ export class GatewayClient {
     return null;
   }
 
-  private createPendingStop(ws: WebSocket): PendingStop {
+  private createPendingStop(ws: GatewayClientTransportSocket): PendingStop {
     if (this.pendingStop?.ws === ws) {
       return this.pendingStop;
     }
@@ -814,7 +825,7 @@ export class GatewayClient {
     return this.pendingStop;
   }
 
-  private resolvePendingStop(ws: WebSocket): void {
+  private resolvePendingStop(ws: GatewayClientTransportSocket): void {
     if (this.pendingStop?.ws !== ws) {
       return;
     }
@@ -1480,7 +1491,7 @@ export class GatewayClient {
     const armedAt = Date.now();
     this.clearConnectChallengeTimeout();
     this.connectTimer = setTimeout(() => {
-      if (this.connectSent || this.ws?.readyState !== WebSocket.OPEN) {
+      if (this.connectSent || this.ws?.readyState !== GATEWAY_CLIENT_TRANSPORT_OPEN) {
         return;
       }
       const elapsedMs = Date.now() - armedAt;
@@ -1588,7 +1599,7 @@ export class GatewayClient {
     params?: unknown,
     opts?: GatewayClientRequestOptions,
   ): Promise<T> {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+    if (!this.ws || this.ws.readyState !== GATEWAY_CLIENT_TRANSPORT_OPEN) {
       throw new Error("gateway not connected");
     }
     if (opts?.signal?.aborted) {

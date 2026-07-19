@@ -86,6 +86,22 @@ const SetupCodeQrDataUrlSchema = Type.String({
   pattern: "^data:image/png;base64,",
 });
 
+const DevicePairSetupIrohSchema = Type.Object(
+  {
+    alpn: NonEmptyString,
+    endpointId: NonEmptyString,
+    ticket: NonEmptyString,
+    relayMode: Type.Union([
+      Type.Literal("default"),
+      Type.Literal("disabled"),
+      Type.Literal("staging"),
+      Type.Literal("custom"),
+    ]),
+    relayUrls: Type.Optional(Type.Array(NonEmptyString, { minItems: 1, maxItems: 8 })),
+  },
+  { additionalProperties: false },
+);
+
 /**
  * Generates a device-pairing setup code (and optional QR) so a mobile/companion
  * client can scan it and connect to this gateway. The embedded setup code mints
@@ -117,6 +133,7 @@ export const DevicePairSetupCodeResultSchema = Type.Object(
     ),
     auth: Type.Union([Type.Literal("token"), Type.Literal("password")]),
     urlSource: NonEmptyString,
+    iroh: Type.Optional(DevicePairSetupIrohSchema),
   },
   { additionalProperties: false },
 );
